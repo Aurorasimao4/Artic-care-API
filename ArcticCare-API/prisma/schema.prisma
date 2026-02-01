@@ -1,0 +1,331 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTH
+// ============================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  name          String
+  avatar        String?
+  role          String    @default("user") // user, admin, moderator
+  points        Int       @default(0)
+  level         Int       @default(1)
+  currentStreak Int       @default(0)
+  longestStreak Int       @default(0)
+  lastActiveAt  DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  issues        Issue[]
+  comments      Comment[]
+  votes         Vote[]
+  contributions Contribution[]
+  userBadges    UserBadge[]
+
+  @@map("users")
+}
+
+// ============================================
+// ENVIRONMENTAL ISSUES
+// ============================================
+
+model Issue {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  category    String   // flood, fire, pollution, deforestation, waste, other
+  severity    String   // low, medium, high, critical
+  status      String   @default("open") // open, investigating, in_progress, resolved, closed
+  
+  // Location
+  latitude    Float
+  longitude   Float
+  address     String?
+  region      String?
+  
+  // Media
+  images      String?  // JSON array of image URLs
+  
+  // Metadata
+  reportedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  resolvedAt  DateTime?
+  
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  comments    Comment[]
+  votes       Vote[]
+
+  @@map("issues")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("comments")
+}
+
+model Vote {
+  id        String   @id @default(uuid())
+  type      String   // upvote, downvote, confirm (confirma que a issue é real)
+  createdAt DateTime @default(now())
+
+  // Relations
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([issueId, userId, type])
+  @@map("votes")
+}
+
+// ============================================
+// CLIMATE DATA & DATASETS
+// ============================================
+
+model Dataset {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  category    String   // temperature, air_quality, water, vegetation, weather
+  source      String   // API source or manual
+  region      String?
+  
+  // Data
+  data        String   // JSON data
+  unit        String?  // celsius, ppm, mm, etc
+  
+  // Metadata
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@map("datasets")
+}
+
+model ClimateReading {
+  id          String   @id @default(uuid())
+  type        String   // temperature, humidity, air_quality, water_level
+  value       Float
+  unit        String
+  latitude    Float
+  longitude   Float
+  region      String?
+  source      String   // sensor_id or api_name
+  recordedAt  DateTime @default(now())
+
+  @@map("climate_readings")
+}
+
+// ============================================
+// INSIGHTS & AI
+// ============================================
+
+model Insight {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  category    String   // prediction, anomaly, trend, alert
+  severity    String?  // info, warning, danger
+  confidence  Float?   // 0-100 percentage
+  data        String?  // JSON with additional data
+  createdAt   DateTime @default(now())
+
+  @@map("insights")
+}
+
+// ============================================
+// GAMIFICATION & CONTRIBUTIONS
+// ============================================
+
+model Contribution {
+  id          String   @id @default(uuid())
+  type        String   // issue_reported, issue_confirmed, comment, data_submitted
+  points      Int
+  description String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("contributions")
+}
+
+model Badge {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  icon        String
+  requirement String   // JSON with requirements
+  points      Int
+  category    String   @default("general") // general, issues, community, streak, impact
+
+  // Relations
+  userBadges  UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id          String   @id @default(uuid())
+  unlockedAt  DateTime @default(now())
+  
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId     String
+  badge       Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+model ImpactStats {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  co2Saved        Float    @default(0)   // kg de CO2
+  treesEquivalent Float    @default(0)   // árvores plantadas equivalente
+  waterSaved      Float    @default(0)   // litros de água
+  wasteReported   Float    @default(0)   // kg de lixo reportado
+  areasProtected  Int      @default(0)   // áreas protegidas
+  updatedAt       DateTime @updatedAt
+
+  @@map("impact_stats")
+}
+
+// ============================================
+// ALERTS & NOTIFICATIONS
+// ============================================
+
+model Alert {
+  id          String   @id @default(uuid())
+  type        String   // critical, warning, info
+  title       String
+  message     String
+  region      String?
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  @@map("alerts")
+}
+
+// ============================================
+// INSTITUTIONAL PANEL
+// ============================================
+
+model Institution {
+  id                String   @id @default(uuid())
+  name              String
+  email             String   @unique
+  password          String
+  type              String   // municipal, estadual, federal, ong, privada
+  cnpj              String?  @unique
+  phone             String?
+  address           String?
+  city              String?
+  state             String?
+  country           String   @default("Brasil")
+  logo              String?
+  apiKey            String?  @unique
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  members           InstitutionMember[]
+  riskZones         RiskZone[]
+  notificationSettings NotificationSettings?
+
+  @@map("institutions")
+}
+
+model InstitutionMember {
+  id              String   @id @default(uuid())
+  email           String
+  name            String
+  role            String   @default("analyst") // admin, manager, analyst, viewer
+  password        String
+  isActive        Boolean  @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  institutionId   String
+  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([email, institutionId])
+  @@map("institution_members")
+}
+
+model RiskZone {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  riskLevel       String   // low, medium, high, critical
+  type            String   // flood, fire, landslide, pollution, mixed
+  
+  // Polygon coordinates (JSON array of [lat, lng])
+  coordinates     String   // JSON polygon
+  centerLat       Float
+  centerLng       Float
+  radius          Float?   // metros, se for círculo
+  
+  // Metadata
+  population      Int?     // população afetada estimada
+  lastIncident    DateTime?
+  incidentCount   Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  institutionId   String
+  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@map("risk_zones")
+}
+
+model NotificationSettings {
+  id                    String   @id @default(uuid())
+  emailEnabled          Boolean  @default(true)
+  smsEnabled            Boolean  @default(false)
+  pushEnabled           Boolean  @default(true)
+  criticalAlerts        Boolean  @default(true)
+  dailyDigest           Boolean  @default(false)
+  weeklyReport          Boolean  @default(true)
+  newReportNotification Boolean  @default(true)
+  resolvedNotification  Boolean  @default(true)
+  
+  // Relations
+  institutionId         String   @unique
+  institution           Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
