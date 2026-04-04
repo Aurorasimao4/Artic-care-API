@@ -1,8 +1,79 @@
 import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import prisma from '../lib/prisma';
+import OpenAI from 'openai';
 
 const router = Router();
+
+// Configuração da OpenAI (requer OPENAI_API_KEY no .env)
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'fake-key-for-now',
+});
+
+/**
+ * @swagger
+ * /api/ai/chat:
+ *   post:
+ *     summary: Inicia uma conversa com a IA sobre questões ambientais
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - message
+ *             properties:
+ *               message:
+ *                 type: string
+ *               history:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *     responses:
+ *       200:
+ *         description: Resposta da IA gerada com sucesso
+ */
+router.post('/chat', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const { message, history = [] } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: 'Mensagem é obrigatória' });
+    }
+
+    // Se não houver chave real, simulamos uma resposta realista para teste
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'fake-key-for-now') {
+      return res.json({
+        response: `Olá ${req.user?.name}! Como sou um assistente do ArcticCare focado no meio ambiente, posso te dizer que sua mensagem "${message}" é muito importante. No momento estou operando em modo de demonstração, mas em breve poderei analisar dados em tempo real para te ajudar melhor!`,
+        suggestions: ['Como posso ajudar?', 'Ver mapa de calor', 'Relatar problema']
+      });
+    }
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { 
+          role: "system", 
+          content: "Você é o ArcticCare AI, um assistente especializado em preservação ambiental e mudanças climáticas. Seja empático, técnico e incentive a ação positiva." 
+        },
+        ...history,
+        { role: "user", content: message }
+      ],
+    });
+
+    res.json({
+      response: completion.choices[0].message.content,
+      usage: completion.usage
+    });
+  } catch (error) {
+    console.error('AI Chat error:', error);
+    res.status(500).json({ error: 'Erro ao processar conversa com IA' });
+  }
+});
 
 /**
  * @swagger

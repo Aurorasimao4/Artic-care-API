@@ -16,7 +16,8 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response) => {
       page = '1',
       limit = '20',
       sortBy = 'reportedAt',
-      order = 'desc'
+      order = 'desc',
+      mapBounds // For map filtering: lat/lon ranges
     } = req.query;
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
@@ -28,6 +29,14 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response) => {
     if (severity) where.severity = severity;
     if (status) where.status = status;
     if (region) where.region = { contains: region as string };
+
+    // Latitude and Longitude filtering (for real maps)
+    if (mapBounds) {
+      const bounds = JSON.parse(mapBounds as string);
+      where.latitude = { gte: bounds.minLat, lte: bounds.maxLat };
+      where.longitude = { gte: bounds.minLon, lte: bounds.maxLon };
+    }
+
     if (search) {
       where.OR = [
         { title: { contains: search as string } },
